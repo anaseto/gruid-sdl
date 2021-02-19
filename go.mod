@@ -1,4 +1,4 @@
-module github.com/anaseto/gruid-sdl2
+module github.com/anaseto/gruid-sdl
 
 go 1.15
 
