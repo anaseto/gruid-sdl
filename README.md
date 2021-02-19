@@ -1,3 +1,8 @@
+# gruid-sdl
+
+[![pkg.go.dev](https://pkg.go.dev/badge/github.com/anaseto/gruid-sdl.svg)](https://pkg.go.dev/github.com/anaseto/gruid-sdl)
+[![godocs.io](https://godocs.io/github.com/anaseto/gruid-sdl?status.svg)](https://godocs.io/github.com/anaseto/gruid-sdl)
+
 The *gruid-sdl2* module provides a [gruid](https://github.com/anaseto/gruid)
 Driver for using the [SDL2 library](https://libsdl.org/download-2.0.php) to
 build native graphical applications.
