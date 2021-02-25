@@ -60,6 +60,7 @@ type Config struct {
 	Height      int32       // initial screen height in cells (default: 24)
 	Fullscreen  bool        // use “real” fullscreen with a videomode change
 	Accelerated bool        // use accelerated renderer (rarely necessary)
+	WindowTitle string      // window title (default: gruid go-sdl2)
 }
 
 // NewDriver returns a new driver with given configuration options.
@@ -73,7 +74,10 @@ func NewDriver(cfg Config) *Driver {
 	if dr.height <= 0 {
 		dr.height = 24
 	}
-	dr.title = "gruid go-sdl2"
+	dr.title = cfg.WindowTitle
+	if dr.title == "" {
+		dr.title = "gruid go-sdl2"
+	}
 	dr.fullscreen = cfg.Fullscreen
 	dr.SetTileManager(cfg.TileManager)
 	dr.accelerated = cfg.Accelerated
