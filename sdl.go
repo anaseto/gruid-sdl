@@ -51,6 +51,7 @@ type Driver struct {
 	scaleX      float32
 	scaleY      float32
 	title       string
+	icon        image.Image
 }
 
 // Config contains configurations options for the driver.
@@ -61,6 +62,7 @@ type Config struct {
 	Fullscreen  bool        // use “real” fullscreen with a videomode change
 	Accelerated bool        // use accelerated renderer (rarely necessary)
 	WindowTitle string      // window title (default: gruid go-sdl2)
+	WindowIcon  image.Image // window icon (optional)
 }
 
 // NewDriver returns a new driver with given configuration options.
@@ -81,6 +83,7 @@ func NewDriver(cfg Config) *Driver {
 	dr.fullscreen = cfg.Fullscreen
 	dr.SetTileManager(cfg.TileManager)
 	dr.accelerated = cfg.Accelerated
+	dr.icon = cfg.WindowIcon
 	return dr
 }
 
@@ -212,6 +215,7 @@ func (dr *Driver) Init() error {
 			return fmt.Errorf("failed to create sdl renderer: %v", err)
 		}
 		dr.window.SetResizable(false)
+		dr.setIcon()
 		if dr.fullscreen {
 			err := dr.window.SetFullscreen(sdl.WINDOW_FULLSCREEN)
 			if err != nil {
@@ -233,6 +237,18 @@ func (dr *Driver) Init() error {
 	dr.mousedrag = -1
 	dr.init = true
 	return nil
+}
+
+func (dr *Driver) setIcon() {
+	if dr.icon == nil {
+		return
+	}
+	sf, err := imageToSurface(dr.icon)
+	if err != nil {
+		log.Printf("bad icon image: %v", err)
+		return
+	}
+	dr.window.SetIcon(sf)
 }
 
 func (dr *Driver) coords(x, y int32) gruid.Point {
@@ -562,6 +578,23 @@ actions:
 	dr.renderer.Present()
 }
 
+func imageToSurface(img image.Image) (*sdl.Surface, error) {
+	buf := bytes.Buffer{}
+	err := bmp.Encode(&buf, img)
+	if err != nil {
+		return nil, err
+	}
+	src, err := sdl.RWFromMem(buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	sf, err := sdl.LoadBMPRW(src, true)
+	if err != nil {
+		return nil, err
+	}
+	return sf, nil
+}
+
 func (dr *Driver) draw(cell gruid.Cell, x, y int) {
 	var tx *sdl.Texture
 	if t, ok := dr.textures[cell]; ok {
@@ -572,18 +605,7 @@ func (dr *Driver) draw(cell gruid.Cell, x, y int) {
 			log.Printf("no tile for %+v", cell)
 			return
 		}
-		buf := bytes.Buffer{}
-		err := bmp.Encode(&buf, img)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		src, err := sdl.RWFromMem(buf.Bytes())
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		sf, err := sdl.LoadBMPRW(src, true)
+		sf, err := imageToSurface(img)
 		if err != nil {
 			log.Println(err)
 			return
