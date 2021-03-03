@@ -259,10 +259,46 @@ func (dr *Driver) coords(x, y int32) gruid.Point {
 	return gruid.Point{X: int((x - 1) / dr.tw), Y: int((y - 1) / dr.th)}
 }
 
-func send(ctx context.Context, msgs chan<- gruid.Msg, msg gruid.Msg) {
-	select {
-	case msgs <- msg:
-	case <-ctx.Done():
+// PollMsg makes Driver implement gruid.DriverPollMsg. It returns return an
+// input message, if any, in a non-blocking way.
+func (dr *Driver) PollMsg() (gruid.Msg, error) {
+	for {
+		select {
+		case <-dr.reqredraw:
+			w, h := dr.window.GetSize()
+			return gruid.MsgScreen{Width: int(w / dr.tw), Height: int(h / dr.th), Time: time.Now()}, nil
+		default:
+		}
+		event := sdl.PollEvent()
+		if event == nil {
+			return nil, nil
+		}
+		var msg gruid.Msg
+		switch ev := event.(type) {
+		case *sdl.QuitEvent:
+			msg = gruid.MsgQuit(time.Now())
+		case *sdl.TextInputEvent:
+			msg = dr.pollTextInputEvent(ev)
+		//case *sdl.TextEditingEvent:
+		// TODO: Handling this would allow to use an input
+		// method for making compositions and chosing text.
+		// I'm not sure what the API for this should be in
+		// gruid or the driver.
+		case *sdl.KeyboardEvent:
+			msg = dr.pollKeyboardEvent(ev)
+		case *sdl.MouseButtonEvent:
+			msg = dr.pollMouseButtonEvent(ev)
+		case *sdl.MouseMotionEvent:
+			msg = dr.pollMouseMotionEvent(ev)
+		case *sdl.MouseWheelEvent:
+			msg = dr.pollMouseWheelEvent(ev)
+		case *sdl.WindowEvent:
+			msg = dr.pollWindowEvent(ev)
+		}
+		if msg == nil {
+			continue
+		}
+		return msg, nil
 	}
 }
 
@@ -270,53 +306,37 @@ func send(ctx context.Context, msgs chan<- gruid.Msg, msg gruid.Msg) {
 func (dr *Driver) PollMsgs(ctx context.Context, msgs chan<- gruid.Msg) error {
 	var t *time.Timer
 	for {
+		msg, err := dr.PollMsg()
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-dr.reqredraw:
-			w, h := dr.window.GetSize()
-			send(ctx, msgs, gruid.MsgScreen{Width: int(w / dr.tw), Height: int(h / dr.th), Time: time.Now()})
 		default:
-		}
-		event := sdl.PollEvent()
-		if event == nil {
-			if t == nil {
-				t = time.NewTimer(5 * time.Millisecond)
-			} else {
-				t.Reset(5 * time.Millisecond)
+			if err != nil {
+				return err
 			}
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-t.C:
-				continue
+			if msg == nil {
+				if t == nil {
+					t = time.NewTimer(2 * time.Millisecond)
+				} else {
+					t.Reset(2 * time.Millisecond)
+				}
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-t.C:
+					continue
+				}
 			}
 		}
-		switch ev := event.(type) {
-		case *sdl.QuitEvent:
-			send(ctx, msgs, gruid.MsgQuit(time.Now()))
-		case *sdl.TextInputEvent:
-			dr.pollTextInputEvent(ctx, msgs, ev)
-		//case *sdl.TextEditingEvent:
-		// TODO: Handling this would allow to use an input
-		// method for making compositions and chosing text.
-		// I'm not sure what the API for this should be in
-		// gruid or the driver.
-		case *sdl.KeyboardEvent:
-			dr.pollKeyboardEvent(ctx, msgs, ev)
-		case *sdl.MouseButtonEvent:
-			dr.pollMouseButtonEvent(ctx, msgs, ev)
-		case *sdl.MouseMotionEvent:
-			dr.pollMouseMotionEvent(ctx, msgs, ev)
-		case *sdl.MouseWheelEvent:
-			dr.pollMouseWheelEvent(ctx, msgs, ev)
-		case *sdl.WindowEvent:
-			dr.pollWindowEvent(ctx, msgs, ev)
+		select {
+		case <-ctx.Done():
+			return nil
+		case msgs <- msg:
 		}
 	}
 }
 
-func (dr *Driver) pollTextInputEvent(ctx context.Context, msgs chan<- gruid.Msg, ev *sdl.TextInputEvent) {
+func (dr *Driver) pollTextInputEvent(ev *sdl.TextInputEvent) gruid.Msg {
 	s := ev.GetText()
 	if utf8.RuneCountInString(s) != 1 {
 		// TODO: handle the case where an input
@@ -324,18 +344,18 @@ func (dr *Driver) pollTextInputEvent(ctx context.Context, msgs chan<- gruid.Msg,
 		// characters? We would have to keep
 		// track of those characters, and send
 		// several messages in a row.
-		return
+		return nil
 	}
 	msg := gruid.MsgKeyDown{}
 	msg.Key = gruid.Key(s)
 	msg.Time = time.Now()
-	send(ctx, msgs, msg)
+	return msg
 }
 
-func (dr *Driver) pollKeyboardEvent(ctx context.Context, msgs chan<- gruid.Msg, ev *sdl.KeyboardEvent) {
+func (dr *Driver) pollKeyboardEvent(ev *sdl.KeyboardEvent) gruid.Msg {
 	c := ev.Keysym.Sym
 	if ev.Type == sdl.KEYUP {
-		return
+		return nil
 	}
 	msg := gruid.MsgKeyDown{}
 	if sdl.KMOD_LALT&ev.Keysym.Mod != 0 {
@@ -409,13 +429,13 @@ func (dr *Driver) pollKeyboardEvent(ctx context.Context, msgs chan<- gruid.Msg, 
 		}
 	}
 	if msg.Key == "" {
-		return
+		return nil
 	}
 	msg.Time = time.Now()
-	send(ctx, msgs, msg)
+	return msg
 }
 
-func (dr *Driver) pollMouseButtonEvent(ctx context.Context, msgs chan<- gruid.Msg, ev *sdl.MouseButtonEvent) {
+func (dr *Driver) pollMouseButtonEvent(ev *sdl.MouseButtonEvent) gruid.Msg {
 	var action gruid.MouseAction
 	switch ev.Button {
 	case sdl.BUTTON_LEFT:
@@ -425,25 +445,25 @@ func (dr *Driver) pollMouseButtonEvent(ctx context.Context, msgs chan<- gruid.Ms
 	case sdl.BUTTON_RIGHT:
 		action = gruid.MouseSecondary
 	default:
-		return
+		return nil
 	}
 	msg := gruid.MsgMouse{}
 	msg.P = dr.coords(ev.X, ev.Y)
 	switch ev.Type {
 	case sdl.MOUSEBUTTONDOWN:
 		if dr.mousedrag != -1 {
-			return
+			return nil
 		}
 		if msg.P.X < 0 || msg.P.X >= int(dr.width) ||
 			msg.P.Y < 0 || msg.P.Y >= int(dr.height) {
-			return
+			return nil
 		}
 		msg.Time = time.Now()
 		msg.Action = action
 		dr.mousedrag = action
 	case sdl.MOUSEBUTTONUP:
 		if dr.mousedrag != action {
-			return
+			return nil
 		}
 		if msg.P.X < 0 || msg.P.X >= int(dr.width) ||
 			msg.P.Y < 0 || msg.P.Y >= int(dr.height) {
@@ -467,18 +487,18 @@ func (dr *Driver) pollMouseButtonEvent(ctx context.Context, msgs chan<- gruid.Ms
 		msg.Mod |= gruid.ModMeta
 	}
 	dr.mousepos = msg.P
-	send(ctx, msgs, msg)
+	return msg
 }
 
-func (dr *Driver) pollMouseMotionEvent(ctx context.Context, msgs chan<- gruid.Msg, ev *sdl.MouseMotionEvent) {
+func (dr *Driver) pollMouseMotionEvent(ev *sdl.MouseMotionEvent) gruid.Msg {
 	msg := gruid.MsgMouse{}
 	msg.P = dr.coords(ev.X, ev.Y)
 	if msg.P == dr.mousepos {
-		return
+		return nil
 	}
 	if msg.P.X < 0 || msg.P.X >= int(dr.width) ||
 		msg.P.Y < 0 || msg.P.Y >= int(dr.height) {
-		return
+		return nil
 	}
 	msg.Time = time.Now()
 	msg.Action = gruid.MouseMove
@@ -496,28 +516,28 @@ func (dr *Driver) pollMouseMotionEvent(ctx context.Context, msgs chan<- gruid.Ms
 	if sdl.KMOD_RGUI&mod != 0 {
 		msg.Mod |= gruid.ModMeta
 	}
-	send(ctx, msgs, msg)
+	return msg
 }
 
-func (dr *Driver) pollMouseWheelEvent(ctx context.Context, msgs chan<- gruid.Msg, ev *sdl.MouseWheelEvent) {
+func (dr *Driver) pollMouseWheelEvent(ev *sdl.MouseWheelEvent) gruid.Msg {
 	msg := gruid.MsgMouse{}
 	if ev.Y > 0 {
 		msg.Action = gruid.MouseWheelUp
 	} else if ev.Y < 0 {
 		msg.Action = gruid.MouseWheelDown
 	} else {
-		return
+		return nil
 	}
 	msg.P = dr.mousepos
 	msg.Time = time.Now()
-	send(ctx, msgs, msg)
+	return msg
 }
 
-func (dr *Driver) pollWindowEvent(ctx context.Context, msgs chan<- gruid.Msg, ev *sdl.WindowEvent) {
+func (dr *Driver) pollWindowEvent(ev *sdl.WindowEvent) gruid.Msg {
 	switch ev.Event {
 	case sdl.WINDOWEVENT_EXPOSED:
 		w, h := dr.window.GetSize()
-		send(ctx, msgs, gruid.MsgScreen{Width: int(w / dr.tw), Height: int(h / dr.th), Time: time.Now()})
+		return gruid.MsgScreen{Width: int(w / dr.tw), Height: int(h / dr.th), Time: time.Now()}
 		//log.Print("exposed")
 		//case sdl.WINDOWEVENT_SHOWN:
 		//log.Print("shown")
@@ -552,6 +572,7 @@ func (dr *Driver) pollWindowEvent(ctx context.Context, msgs chan<- gruid.Msg, ev
 		//case sdl.WINDOWEVENT_NONE:
 		//log.Print("none")
 	}
+	return nil
 }
 
 // Flush implements gruid.Driver.Flush.

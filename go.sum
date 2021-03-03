@@ -1,5 +1,7 @@
 github.com/anaseto/gruid v0.18.0 h1:aP5prHUckklRJNOyXSvr6EsVa0TdBvDy2mtPoN4t1KI=
 github.com/anaseto/gruid v0.18.0/go.mod h1:csCeg/kLRFAAF4gdrx9EYrQbKBBprmWmEdmR0QMmBc4=
+github.com/anaseto/gruid v0.21.0 h1:PKk35eoBFLgBl3bETIfsbfD4LDfu7fOkgiDkwSin2+0=
+github.com/anaseto/gruid v0.21.0/go.mod h1:csCeg/kLRFAAF4gdrx9EYrQbKBBprmWmEdmR0QMmBc4=
 github.com/veandco/go-sdl2 v0.4.5 h1:GFIjMabK7y2XWpr9sGvN7RDKHt7vrA7XPTUW60eOw+Y=
 github.com/veandco/go-sdl2 v0.4.5/go.mod h1:OROqMhHD43nT4/i9crJukyVecjPNYYuCofep6SNiAjY=
 golang.org/x/image v0.0.0-20201208152932-35266b937fa6/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
