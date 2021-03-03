@@ -260,9 +260,14 @@ func (dr *Driver) coords(x, y int32) gruid.Point {
 }
 
 func send(ctx context.Context, msgs chan<- gruid.Msg, msg gruid.Msg) {
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	log.Printf("trying to send message %v...", msg)
 	select {
 	case msgs <- msg:
+		log.Printf("Sucess: message %v sent", msg)
 	case <-ctx.Done():
+		log.Printf("Failed: timeout reached for message %v", msg)
 	}
 }
 
