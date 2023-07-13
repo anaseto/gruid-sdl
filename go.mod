@@ -1,9 +1,9 @@
 module github.com/anaseto/gruid-sdl
 
-go 1.15
+go 1.20
 
 require (
-	github.com/anaseto/gruid v0.21.0
-	github.com/veandco/go-sdl2 v0.4.5
-	golang.org/x/image v0.0.0-20210216034530-4410531fe030
+	github.com/anaseto/gruid v0.22.0
+	github.com/veandco/go-sdl2 v0.4.35
+	golang.org/x/image v0.9.0
 )
