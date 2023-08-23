@@ -1,3 +1,5 @@
+**Migrated to https://codeberg.org/anaseto/gruid-sdl because of 2FA requirement**
+
 # gruid-sdl
 
 [![pkg.go.dev](https://pkg.go.dev/badge/github.com/anaseto/gruid-sdl.svg)](https://pkg.go.dev/github.com/anaseto/gruid-sdl)
